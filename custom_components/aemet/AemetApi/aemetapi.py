@@ -3,24 +3,21 @@ from datetime import timedelta
 import datetime
 from logging import getLogger
 import logging
-from .const import *
+from const import *
 import time
-from homeassistant.util import Throttle
 
-_LOGGER = getLogger(__name__)
 
-from homeassistant.components.weather import (
-	ATTR_WEATHER_HUMIDITY, 
-	ATTR_WEATHER_PRESSURE, 
-	ATTR_WEATHER_TEMPERATURE,
-	ATTR_WEATHER_VISIBILITY
-)
-from homeassistant.const import (
-	ATTR_LATITUDE, 
-	ATTR_LONGITUDE, 
-	HTTP_OK
-)
-
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+_LOGGER = getLogger('simple_example')
+urllib3_logger = logging.getLogger('urllib3')
+urllib3_logger.setLevel(logging.CRITICAL)
+_LOGGER.setLevel(logging.DEBUG)
+# create console handler and set level to debug
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+_LOGGER.addHandler(ch)
+HTTP_OK = 200
 ATTR_ELEVATION = 'elevation'
 ATTR_LAST_UPDATE = 'last_update'
 ATTR_STATION_NAME = 'station_name'
@@ -29,6 +26,13 @@ ATTR_WEATHER_SNOW = 'snow'
 ATTR_WEATHER_WIND_SPEED = 'wind_speed'
 ATTR_WEATHER_WIND_MAX_SPEED = 'wind_max_speed'
 ATTR_WEATHER_WIND_BEARING = 'wind_bearing'
+ATTR_LONGITUDE = 'lon'
+ATTR_LATITUDE = 'lat'
+ATTR_WEATHER_PRESSURE = 'pres'
+ATTR_WEATHER_TEMPERATURE = 'ta'
+ATTR_WEATHER_HUMIDITY = 'hr'
+ATTR_WEATHER_VISIBILITY = 'vis'
+MS_TO_KMH_ATTRS = '0'
 
 #Hourly
 ATTR_FORECAST_TEMP = 'temperature',
@@ -60,15 +64,9 @@ ATTR_MAPPINGS = {
 	ATTR_FORECAST_PREC: 'precipitacion',
 	ATTR_FORECAST_PREC_PROB: 'probPrecipitacion',
 	ATTR_FORECAST_WIND_BEARING: 'vientoAndRachaMax'
+	#ATTR_FORECAST_WIND_SPEED: 'vientoAndRachaMax'
+	
 }
-
-MS_TO_KMH_ATTRS = [ATTR_WEATHER_WIND_SPEED, ATTR_WEATHER_WIND_MAX_SPEED]
-
-CONF_ATTRIBUTION = 'Data provided by AEMET'
-CONF_STATION_ID = 'station_id'
-CONF_NEIGHBORHOOD_ID = 'neighborhood_id'
-
-MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=60)
 
 class AemetApi:
 	"""Get the lastest data and updates the states."""
@@ -84,7 +82,7 @@ class AemetApi:
 		self._api_key = api_key
 		self.data = {}
 
-	@Throttle(MIN_TIME_BETWEEN_UPDATES)
+	#@Throttle(MIN_TIME_BETWEEN_UPDATES)
 	def update(self):
 		"""Fetch new state data for the sensor."""
 		_LOGGER.debug("------- Updating AEMET sensor")
@@ -148,7 +146,9 @@ class AemetApi:
 		for attr in MS_TO_KMH_ATTRS:
 			if attr in state:
 				state[attr] = round(state[attr] * 3.6, 1) # m/s to km/h
-		self.data = state	
+		self.data = state
+		
+		_LOGGER.debug(state)
 	
 	def set_forecast_data(self, record):
 		#Set data using the last record from API.
@@ -239,3 +239,21 @@ class AemetApi:
 		forecast = self.data.get("forecast")
 		_LOGGER.debug(forecast[0])		
 		return forecast[0]["condition"]
+		
+		
+def main():
+	"""Set up the weather platform."""
+	api_key = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJodW1hbmVzZm9ycHJlc2lkZW50QGdtYWlsLmNvbSIsImp0aSI6IjBiMTBkNGZiLTFjZjgtNDA2Ny1iNzdlLWRiZWE5NTVmYTg2ZCIsImlzcyI6IkFFTUVUIiwiaWF0IjoxNjEwNDk1MjQ3LCJ1c2VySWQiOiIwYjEwZDRmYi0xY2Y4LTQwNjctYjc3ZS1kYmVhOTU1ZmE4NmQiLCJyb2xlIjoiIn0.u_yN_8G3QDOS5KTkyLdq3E8dPSJKRXauwIdt9bzEZdk"
+	station_id = "3129"
+	neighborhood_id = "28123"
+
+	aemetApi = AemetApi(api_key=api_key, station_id=station_id, neighborhood_id=neighborhood_id)
+	aemetApi.update()
+	
+	print(str(aemetApi.get_data("forecast")))
+	
+	print(aemetApi.get_current_condition())
+
+
+if __name__ == '__main__':
+	main()
